@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block content_inner %}
+    <div class="panel">
+        <div class="panel-body"><p>Hello {{ user }}. There are {{ count }} files available to claim.</p>
+            <p>These are Google Drive files shared with you by the user specified in the Owner column. These files will be deleted within 2 weeks if they aren't claimed. Please use the View link in the Preview column to open the files in your Google Drive.</p>
+        </div>
+        <form class="form form-horizontal" method="post" role="form">
+            <table class="table">
+                <tr>
+                    <th style="width:30px">
+                        <label for="all" style="text-indent:-100px; height:0px;margin-bottom:0px;display:block">Select All</label>
+                        <input type="checkbox" value="all" id="all" name="all"/>
+                    </th>
+                    <th>Filename</th>
+                    <th>File ID</th>
+                    <th>Owner</th>
+                    <th>Preview</th>
+                </tr>
+                {{ form.hidden_tag() }}
+                {{ wtf.form_errors(form) }}
+                {% for subfield in form.files %}
+                    <tr>
+                        <td>{{ subfield }}</td>
+                        <td>{{ subfield.label }}</td>
+                        <td>{{ subfield.data }}</td>
+                        <td>{{ xref_owners[subfield.data] }}</td>
+                        <td><a href="https://drive.google.com/file/d/{{subfield.data}}" target="_blank">View</a>
+
+                    </tr>
+                {% endfor %}
+             </table>
+            {{ wtf.form_field(form.claim) }}
+         </form>
+    </div>
+{% endblock %}

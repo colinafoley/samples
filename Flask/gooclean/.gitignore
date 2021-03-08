@@ -1,0 +1,4 @@
+*.pyc
+__pycache__
+goocleanconfig.py
+gooclean-venv

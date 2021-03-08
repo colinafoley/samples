@@ -1,0 +1,13 @@
+WTF_CSRF_ENABLED = True
+SECRET_KEY = ''
+
+ORATOR_DATABASES = {
+    'default': {
+        'driver': 'postgres',
+        'database': '',
+        'user': '',
+        'password': '',
+        'host': 'localhost',
+        'port': 5432
+     }
+}

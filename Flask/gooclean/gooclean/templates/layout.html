@@ -1,0 +1,67 @@
+{% extends "bootstrap/base.html" %}
+{% block title %}Google Sharing Cleanup{% endblock %}
+{% block head %}
+    {{ super() }}
+    <script
+      src="https://code.jquery.com/jquery-3.2.1.min.js"
+      integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+      crossorigin="anonymous"></script>
+    <script type="text/javascript">
+        $('document').ready(function () {
+            $('#all').click(function() {
+              $(':checkbox').prop('checked', $(this).prop('checked'));
+            });
+        });
+    </script>
+    <style>
+        .brown_bg {
+            background: rgba(80,45,14,0.9);
+            position: relative;
+            overflow: hidden;
+            padding: 15px 0;
+        }
+    </style>
+{% endblock %}
+{% block styles %}{{ super() }}{% endblock %}
+
+{% import "bootstrap/utils.html" as utils %}
+
+{% block body %}
+    <div class="brown_bg">
+        <div class="container">
+          <div class="logoimage">
+            <a href="/home">
+            </a>
+          </div>
+      </div>
+    </div>
+
+    <div class="container">
+        {{ nav.top_nav.render() }}
+    </div>
+    {% block hero %}
+    {% endblock %}
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    <div id="messages">
+        {% if messages %}
+          <div class="row">
+            <div class="col-md-12">
+                {{ utils.flashed_messages(messages) }}
+            </div>
+          </div>
+        {% endif %}
+    </div>
+    {% endwith %}
+ {{ super() }}
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                {% block content_inner %}{% endblock %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
