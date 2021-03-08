@@ -1,0 +1,5 @@
+*.pyc
+earmconfig.py
+rules/*
+!rules/.gitkeep
+elastalert/
