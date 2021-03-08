@@ -1,0 +1,7 @@
+name = ESRI Field
+description = Field for looking up data in ESRI
+
+dependencies[] = field_ui
+
+core = 7.x
+package = 'Fields'

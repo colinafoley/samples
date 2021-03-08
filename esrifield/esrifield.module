@@ -1,0 +1,424 @@
+<?php
+define("VALUE_NOT_SET_BY_AJAX", NULL);
+
+function esrifield_menu() {
+  $items = array();
+
+  $items['esrifield/autocomplete/%/%/%/%/%'] = array(
+    'page callback' => 'esrifield_autocomplete',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK
+  );
+
+  return $items;
+}
+
+function esrifield_theme($existing, $type, $theme, $path) {
+  return array(
+    'esrifield_formatter_default' => array(
+      'variables' => array(
+        'item' => NULL,
+        'settings' => NULL,
+      ),
+    ),
+  );
+}
+
+
+function esrifield_field_info() {
+  return array(
+    'esrifield' => array(
+      'label' => t('ESRI Field'),
+      'description' => t('This field looks up data from an ESRI Server.'),
+      'default_widget' => 'esrifield_widget_form',
+      'default_formatter' => 'esrifield_default',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function esrifield_field_widget_info() {
+  return array(
+    'esrifield_widget_form' => array(
+      'label' => t('ESRI Field form'),
+      'field types' => array('esrifield'),
+      'behaviors' => array(
+        'multiple values' => FIELD_BEHAVIOR_DEFAULT,
+        'default value' => FIELD_BEHAVIOR_DEFAULT,
+      ),
+      'settings' => array(
+        'gis_server' => 'default',
+        'gis_folder' => 'default',
+        'gis_map_server' => 'default',
+        'gis_layer' => 'default',
+        'gis_layer_name_field' => 'default',
+        'gis_layer_id_field' => 'default',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_widget_form().
+ */
+function esrifield_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  if ($instance['widget']['type'] == 'esrifield_widget_form') {
+    $widget = $instance['widget'];
+    $settings = $widget['settings'];
+
+    clean_esrifield_settings($field['settings']);
+    $path = 'esrifield/autocomplete/' . urlencode($field['settings']['gis_server'])
+      . '/' . urlencode($field['settings']['gis_map_server']) . '/' . urlencode($field['settings']['gis_layer'])
+      . '/' . urlencode($field['settings']['gis_layer_name_field']) . '/' . urlencode($field['settings']['gis_layer_id_field']);
+    $element['uuid'] = array(
+      '#type' => 'textfield',
+      '#title' => t('UUID'),
+      '#description' => t('Type in the box to search for an ESRI UUID'),
+      '#default_value' => isset($items[$delta]['gis']['uuid']) ? $items[$delta]['gis']['uuid'] : NULL,
+      '#autocomplete_path' => $path,
+    );
+
+  }
+  return $element;
+}
+
+function clean_esrifield_settings(&$settings) {
+  foreach ($settings as &$setting) {
+    $setting = str_replace("/", "|||", $setting);
+  }
+}
+
+function esrifield_autocomplete($string) {
+  $matches = array();
+  $server = arg(2);
+  $map_server = arg(3);
+  $layer = arg(4);
+  $name_field = arg(5);
+  $id_field = arg(6);
+
+  restore_esrifield_setting($server);
+  restore_esrifield_setting($map_server);
+  restore_esrifield_setting($layer);
+  restore_esrifield_setting($name_field);
+  restore_esrifield_setting($id_field);
+
+  $lookup_url = "$server/$map_server/MapServer/$layer/query?f=json&text=" . check_plain($string) . "&returnCountOnly=false&returnIdsOnly=false&returnGeometry=false&outFields=*";
+  $lookup = json_decode(file_get_contents($lookup_url));
+
+  foreach ($lookup->features as $feature) {
+    $matches[$feature->attributes->$id_field] = $feature->attributes->$name_field . " : " . $feature->attributes->$id_field;
+  }
+
+  drupal_json_output($matches);
+}
+
+function restore_esrifield_setting(&$setting) {
+  $setting = str_replace("|||", "/", $setting);
+}
+
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function esrifield_field_formatter_info() {
+  return array(
+    'esrifield_default' => array(
+      'label' => t('Default'),
+      'field types' => array('esrifield'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function esrifield_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+
+  $settings = $field['settings'];
+  switch ($display['type']) {
+    case 'esrifield_default':
+      foreach ($items as $delta => $item) {
+        $element[$delta]['#markup'] = theme_esrifield_formatter_default($item, $settings);
+      }
+      break;
+  }
+
+  return $element;
+}
+
+function theme_esrifield_formatter_default($item, $settings) {
+  $output = '';
+  $output .= '<div class="esrifield-wrapper">';
+
+  $url = $settings['gis_server'] . "/" . $settings['gis_map_server'] . "/MapServer/" .  $settings['gis_layer'] ."/".  $item['uuid'] . "/htmlPopup?f=html";
+  $page = file_get_contents($url);
+  $output .= 'UUID: ' . $page . "<br>";
+  $output .= $url;
+  $output .= '</div><br />';
+
+  return $output;
+}
+
+/**
+ * Implementation of hook_field_is_empty().
+ */
+function esrifield_field_is_empty($item, $field) {
+  if ($field['type'] == 'esrifield' && empty($item['uuid'])) {
+     return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_field_settings_form().
+ */
+function esrifield_field_settings_form($field, $instance, $has_data) {
+  if ($field['type'] == 'esrifield') {
+    $form = array();
+
+    $form['gis_server']     = array('#markup' => 'this is a place holder element');
+    $form['gis_folder']     = array('#markup' => 'this is a place holder element');
+    $form['gis_map_server'] = array('#markup' => 'this is a place holder element');
+    $form['gis_layer']     = array('#markup' => 'this is a place holder element');
+    $form['gis_layer_name_field'] = array('#markup' => 'this is a place holder element');
+    $form['gis_layer_id_field'] = array('#markup' => 'this is a place holder element');
+
+    $form['#saved_field_settings'] = $field['settings'];
+
+    return $form;
+  }
+}
+
+function esrifield_form_field_ui_field_settings_form_alter(&$form, &$form_state, $form_id) {
+  if ($form['field']['type']['#value'] = 'esrifield') {
+    add_esrifield_gis_elements_to($form, $form_state);
+  }
+}
+
+function add_esrifield_gis_elements_to(&$form, $form_state) {
+    add_esrifield_gis_elements_wrapper_to($form);
+
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    add_esrifield_gis_server_element_to($form, $form_state);
+
+    if (esrifield_element_has_value('gis_server', $saved_field_settings, $form_state)) {
+      add_esrifield_gis_folder_element_to($form, $form_state);
+    }
+    if (esrifield_element_has_value('gis_folder', $saved_field_settings, $form_state)) {
+      add_esrifield_map_server_element_to($form, $form_state);
+    }
+    if (esrifield_element_has_value('gis_map_server', $saved_field_settings, $form_state)) {
+      add_esrifield_layer_element_to($form, $form_state);
+    }
+    if (esrifield_element_has_value('gis_layer', $saved_field_settings, $form_state)) {
+      add_esrifield_layer_name_field_element_to($form, $form_state);
+      add_esrifield_layer_id_field_element_to($form, $form_state);
+    }
+}
+
+function add_esrifield_gis_elements_wrapper_to(&$form) {
+  $form['#prefix'] = '<div id="gis-info">';
+  $form['#suffix'] = '</div>';
+}
+
+function esrifield_get_saved_settings_from($form) {
+  return $form['field']['settings']['#saved_field_settings'];
+}
+
+function add_esrifield_gis_server_element_to(&$form, $form_state) {
+  $gis_server_element = array(
+    '#type' => 'textfield',
+    '#title' => 'Server',
+    '#required' => TRUE,
+    '#ajax' => esrifield_ajax_array(),
+  );
+
+  $ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  if (isset($ajax_value)) {
+    $gis_server_element['#default_value'] = $ajax_value;
+  } else {
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    if (isset($saved_field_settings['gis_server'])) {
+      $gis_server_element['#default_value'] = $saved_field_settings['gis_server'];
+    }
+  }
+
+  $form['field']['settings']['gis_server'] = $gis_server_element;
+}
+
+function esrifield_ajax_array() {
+  return array(
+    'callback' => 'esrifield_folder_callback',
+    'wrapper' => 'gis-info',
+    'method' => 'replace',
+    'effect' => 'fade',
+  );
+}
+
+function esrifield_element_value_from_ajax($element_index, $form_state) {
+ if (isset($form_state['values'])) {
+   return $form_state['values']['field']['settings'][$element_index];
+ }
+
+ return VALUE_NOT_SET_BY_AJAX;
+}
+
+function esrifield_element_has_value($element_index, $saved_field_settings, $form_state) {
+  return isset($saved_field_settings[$element_index]) || isset($form_state['values']['field']['settings'][$element_index]);
+}
+
+function add_esrifield_gis_folder_element_to(&$form, $form_state) {
+  $gis_folder_element = array(
+    '#type' => 'select',
+    '#title' => t('Folder'),
+    '#ajax' => esrifield_ajax_array(),
+  );
+
+
+  $ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  if (isset($ajax_value)) {
+    $gis_folder_element['#options'] = esrifield_folder_options($ajax_value);
+  } else {
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    if (isset($saved_field_settings['gis_server'])) {
+      $gis_folder_element['#options'] = esrifield_folder_options($saved_field_settings['gis_server']);
+      $gis_folder_element['#default_value'] = $saved_field_settings['gis_folder'];
+    }
+  }
+
+  $form['field']['settings']['gis_folder'] = $gis_folder_element;
+}
+
+function esrifield_folder_options($server) {
+  $lookup_url = $server . '/?f=json';
+  $lookup = json_decode(file_get_contents($lookup_url));
+
+  return esrifield_select_options_for($lookup->folders);
+}
+
+function esrifield_select_options_for($collection, $options_key_field = "", $options_value_field = "") {
+  $options = array();
+  foreach ($collection as $collection_item) {
+    $key = $options_key_field ? $collection_item->$options_key_field : $collection_item;
+    $value = $options_value_field ? $collection_item->$options_value_field : $collection_item;
+    $options[$key] = $value;
+  }
+
+  $options[NULL] = 'Please select';
+  return $options;
+}
+
+function esrifield_folder_callback($form) {
+  return $form;
+}
+
+function add_esrifield_map_server_element_to(&$form, $form_state) {
+  $gis_map_server_element = array(
+    '#type' => 'select',
+    '#title' => 'Map Server',
+    //'#default_value' => isset($items[$delta]['gis']['map_server']) ? $items[$delta]['gis']['map_server'] : NULL,
+    '#ajax' => esrifield_ajax_array(),
+  );
+
+  $gis_server_ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  $gis_folder_ajax_value = esrifield_element_value_from_ajax('gis_folder', $form_state);
+  if (isset($gis_server_ajax_value) && isset($gis_folder_ajax_value)) {
+    $gis_map_server_element['#options'] = esrifield_map_server_options($gis_server_ajax_value, $gis_folder_ajax_value);
+  } else {
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    $gis_map_server_element['#options'] = esrifield_map_server_options($saved_field_settings['gis_server'], $saved_field_settings['gis_folder']);
+    $gis_map_server_element['#default_value'] = $saved_field_settings['gis_map_server'];
+  }
+
+  $form['field']['settings']['gis_map_server'] = $gis_map_server_element;
+}
+
+function esrifield_map_server_options($gis_server, $gis_folder) {
+  $lookup_url = $gis_server . '/' . $gis_folder . '/?f=json';
+  $lookup = json_decode(file_get_contents($lookup_url));
+  return esrifield_select_options_for($lookup->services, 'name', 'name');
+}
+
+function add_esrifield_layer_element_to(&$form, $form_state) {
+  $gis_layer_element = array(
+    '#type' => 'select',
+    '#title' => 'Layer',
+    '#ajax' => esrifield_ajax_array(),
+  );
+
+  $gis_server_ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  $gis_map_server_ajax_value = esrifield_element_value_from_ajax('gis_map_server', $form_state);
+  if (isset($gis_server_ajax_value) && isset($gis_map_server_ajax_value)) {
+    $gis_layer_element['#options'] = esrifield_layer_options($gis_server_ajax_value, $gis_map_server_ajax_value);
+  } else {
+    $gis_layer_element['#options'] = esrifield_layer_options($form['field']['settings']['#saved_field_settings']['gis_server'], $form['field']['settings']['#saved_field_settings']['gis_map_server']);
+    $gis_layer_element['#default_value'] = $form['field']['settings']['#saved_field_settings']['gis_layer'];
+  }
+
+  $form['field']['settings']['gis_layer'] = $gis_layer_element;
+}
+
+function esrifield_layer_options($gis_server, $gis_map_server) {
+  $lookup_url = $gis_server . '/' . $gis_map_server . '/MapServer/?f=json';
+  $lookup = json_decode(file_get_contents($lookup_url));
+  return esrifield_select_options_for($lookup->layers, 'id', 'name');
+}
+
+function add_esrifield_layer_name_field_element_to(&$form, $form_state) {
+  $gis_layer_name_field_element = array(
+    '#type' => 'select',
+    '#title' => 'Name Field',
+  );
+
+  $gis_server_ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  $gis_map_server_ajax_value = esrifield_element_value_from_ajax('gis_map_server', $form_state);
+  $gis_layer_ajax_value = esrifield_element_value_from_ajax('gis_layer', $form_state);
+  if (isset($gis_layer_ajax_value)) {
+    $gis_layer_name_field_element['#options'] = esrifield_layer_field_options($gis_server_ajax_value, $gis_map_server_ajax_value, $gis_layer_ajax_value);
+  } else {
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    $gis_layer_name_field_element['#options'] = esrifield_layer_field_options($saved_field_settings['gis_server'], $saved_field_settings['gis_map_server'], $saved_field_settings['gis_layer']);
+    $gis_layer_name_field_element['#default_value'] = $saved_field_settings['gis_layer_name_field'];
+  }
+
+  $form['field']['settings']['gis_layer_name_field'] = $gis_layer_name_field_element;
+}
+
+function esrifield_layer_field_options($gis_server, $gis_map_server, $gis_layer) {
+  $lookup_url = "$gis_server/$gis_map_server/MapServer/$gis_layer?f=json";
+  $lookup = json_decode(file_get_contents($lookup_url));
+  return esrifield_select_options_for($lookup->fields, 'name', 'name');
+}
+
+function add_esrifield_layer_id_field_element_to(&$form, $form_state) {
+  $gis_layer_id_field_element = array(
+    '#type' => 'select',
+    '#title' => 'ID Field',
+  );
+
+  $gis_server_ajax_value = esrifield_element_value_from_ajax('gis_server', $form_state);
+  $gis_map_server_ajax_value = esrifield_element_value_from_ajax('gis_map_server', $form_state);
+  $gis_layer_ajax_value = esrifield_element_value_from_ajax('gis_layer', $form_state);
+  if (isset($gis_layer_ajax_value)) {
+    $gis_layer_id_field_element['#options'] = esrifield_layer_field_options($gis_server_ajax_value, $gis_map_server_ajax_value, $gis_layer_ajax_value);
+  } else {
+    $saved_field_settings = esrifield_get_saved_settings_from($form);
+    $gis_layer_id_field_element['#options'] = esrifield_layer_field_options($saved_field_settings['gis_server'], $saved_field_settings['gis_map_server'], $saved_field_settings['gis_layer']);
+    $gis_layer_id_field_element['#default_value'] = $saved_field_settings['gis_layer_id_field'];
+  }
+
+  $form['field']['settings']['gis_layer_id_field'] = $gis_layer_id_field_element;
+}
+
+/**
+ * Implementation of hook_field_validate().
+ */
+function esrifield_field_validate($obj_type, $object, $field, $instance, $langcode, &$items, &$errors) {
+  if ($field['type'] == 'esrifield') {
+
+  }
+}

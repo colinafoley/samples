@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * Implementation of hook_field_schema().
+ */
+function esrifield_field_schema($field) {
+  if ($field['type'] == 'esrifield') {
+
+    $schema['columns']['uuid'] = array(
+      'type' => 'varchar',
+      'length' => '255',
+      'not null' => FALSE,
+    );
+
+    $schema['indexes'] = array(
+      'uuid' => array('uuid'),
+    );
+
+    return $schema;
+  }
+}
